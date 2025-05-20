@@ -1,0 +1,31 @@
+{
+  "name": "temporal-rpa-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RPA流程编排引擎基于Temporal和Playwright",
+  "scripts": {
+    "dev": "pnpm --filter @temporal-rpa-engine/* run dev",
+    "build": "pnpm --filter @temporal-rpa-engine/* run build",
+    "start:api": "pnpm --filter @temporal-rpa-engine/api run start:dev",
+    "start:worker": "pnpm --filter @temporal-rpa-engine/worker run start:dev",
+    "start:designer": "pnpm --filter @temporal-rpa-engine/designer run dev",
+    "format": "prettier --write \"**/*.{ts,tsx,json}\"",
+    "temporal:dev-server": "temporal server start-dev --db-filename temporal.db"
+  },
+  "keywords": [
+    "temporal",
+    "rpa",
+    "workflow",
+    "playwright",
+    "nestjs",
+    "react"
+  ],
+  "author": "",
+  "license": "MIT",
+  "packageManager": "pnpm@10.10.0",
+  "devDependencies": {
+    "@types/uuid": "^10.0.0",
+    "prettier": "^3.0.3",
+    "typescript": "^5.2.2"
+  }
+}

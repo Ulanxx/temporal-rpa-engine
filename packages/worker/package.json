@@ -1,0 +1,23 @@
+{
+  "name": "@temporal-rpa-engine/worker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "start": "ts-node src/worker.ts",
+    "start:dev": "ts-node-dev --respawn src/worker.ts"
+  },
+  "dependencies": {
+    "@temporalio/worker": "^1.8.0",
+    "@temporalio/workflow": "^1.8.0",
+    "@temporalio/activity": "^1.8.0",
+    "@temporal-rpa-engine/shared": "workspace:*",
+    "playwright": "^1.40.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.5.0",
+    "ts-node": "^10.9.1",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.2.2"
+  }
+}

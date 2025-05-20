@@ -1,0 +1,24 @@
+{
+  "name": "@temporal-rpa-engine/shared",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "dev": "npm run build:esm -- --watch",
+    "build": "npm run build:esm && npm run build:cjs",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@temporalio/common": "^1.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.5.0",
+    "rimraf": "^5.0.1",
+    "typescript": "^5.2.2"
+  }
+}
