@@ -21,6 +21,16 @@ The project adopts a monorepo architecture, consisting of the following main mod
 
 ## Quick Start
 
+### make commands
+
+```bash
+make install
+make start-all
+
+# show help
+make help
+```
+
 ### Install Dependencies
 
 ```bash

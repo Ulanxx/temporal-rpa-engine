@@ -21,6 +21,16 @@
 
 ## 快速开始
 
+### make 命令
+
+```bash
+make install
+make start-all
+
+# 查看帮助信息
+make help
+```
+
 ### 安装依赖
 
 ```bash
