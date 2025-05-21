@@ -49,6 +49,7 @@ interface FlowEditorProps {
   onNodesChange?: (nodes: Node[]) => void;
   onEdgesChange?: (edges: Edge[]) => void;
   onNodeSelect?: (event: React.MouseEvent, node: Node) => void;
+  hasWorkflow?: boolean; // 是否有已创建的工作流
 }
 
 const FlowEditor: React.FC<FlowEditorProps> = ({
@@ -57,6 +58,7 @@ const FlowEditor: React.FC<FlowEditorProps> = ({
   onNodesChange,
   onEdgesChange,
   onNodeSelect,
+  hasWorkflow = false, // 默认为false
 }) => {
   const { token } = theme.useToken();
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
@@ -204,19 +206,20 @@ const FlowEditor: React.FC<FlowEditorProps> = ({
 
   return (
     <Layout style={{ height: '100%', width: '100%' }}>
-      <Sider width={200} theme="light" style={{ paddingTop: '20px' }}>
-        <NodePanel onDragStart={handleDragStart} />
+      <Sider width={180} theme="light" style={{ paddingTop: '16px', borderRight: `1px solid ${token.colorBorderSecondary}` }}>
+        <NodePanel onDragStart={handleDragStart} enabled={hasWorkflow} />
       </Sider>
       <Content>
-        <div
+          <div
           ref={reactFlowWrapper}
           style={{ 
             width: '100%', 
             height: '100%', 
-            border: '1px solid #ccc',
-            borderRadius: '8px',
+            border: `1px solid ${token.colorBorderSecondary}`,
+            borderRadius: '4px',
             overflow: 'hidden',
-            backgroundColor: token.colorBgContainer
+            backgroundColor: token.colorBgContainer,
+            boxShadow: 'inset 0 0 6px rgba(0,0,0,0.05)'
           }}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
@@ -248,24 +251,26 @@ const FlowEditor: React.FC<FlowEditorProps> = ({
             proOptions={{ hideAttribution: true }}
             defaultEdgeOptions={{
               type: 'customEdge',
-              animated: true,
-              style: { strokeWidth: 2, stroke: token.colorPrimary },
+              animated: false,
+              style: { strokeWidth: 1.5, stroke: token.colorText },
               markerEnd: {
                 type: MarkerType.ArrowClosed,
-                color: token.colorPrimary,
+                color: token.colorText,
+                width: 15,
+                height: 15
               },
             }}
             connectionLineStyle={{
-              strokeWidth: 2,
-              stroke: token.colorPrimary,
-              strokeDasharray: '5 5',
+              strokeWidth: 1.5,
+              stroke: token.colorText,
+              strokeDasharray: '4 4',
             }}
             connectionLineType={ConnectionLineType.SmoothStep}
           >
             <Background 
               color={token.colorBorderSecondary} 
-              gap={16} 
-              size={1.5} 
+              gap={20} 
+              size={1} 
               variant={BackgroundVariant.Dots} 
             />
             
@@ -331,16 +336,24 @@ const FlowEditor: React.FC<FlowEditorProps> = ({
               }}
               nodeColor={(n) => {
                 if (n.type === 'customNode') {
-                  // 根据节点类型返回不同颜色
-                  return n.data.type === 'start' ? '#4CAF50' : 
-                         n.data.type === 'end' ? '#F44336' : 
-                         n.data.type === 'browser_action' ? '#2196F3' : 
-                         '#9E9E9E';
+                  // 返回更繁的颜色
+                  return n.data.type === NodeType.START ? token.colorSuccessBg : 
+                         n.data.type === NodeType.END ? token.colorErrorBg : 
+                         n.data.type === NodeType.BROWSER_ACTION ? token.colorInfoBg : 
+                         n.data.type === NodeType.DELAY ? token.colorWarningBg :
+                         n.data.type === NodeType.API_CALL ? '#f0f0ff' :
+                         n.data.type === NodeType.SCRIPT ? '#f0f7fa' :
+                         n.data.type === NodeType.DECISION ? '#f5f0e6' :
+                         token.colorBgContainer;
                 }
-                return '#eee';
+                return token.colorBgContainer;
               }}
-              maskColor={`${token.colorBgContainer}50`}
-              style={{ backgroundColor: token.colorBgElevated }}
+              maskColor={`${token.colorBgContainer}70`}
+              style={{
+                backgroundColor: token.colorBgElevated,
+                border: `1px solid ${token.colorBorderSecondary}`,
+                borderRadius: '4px'
+              }}
             />
           </ReactFlow>
         </div>

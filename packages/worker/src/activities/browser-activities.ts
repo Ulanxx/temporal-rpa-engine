@@ -8,7 +8,7 @@ let page: Page | null = null;
 
 // 浏览器状态标志
 let browserInitialized = false;
-let browserClosed = false;
+let browserClosed = true; // 默认设为true，确保第一次调用时会初始化浏览器
 
 /**
  * 初始化浏览器
@@ -25,18 +25,29 @@ export async function initBrowser() {
       const browserType = chromium;
       const browserArgs = [
         '--start-maximized',
+        '--disable-dev-shm-usage', // 解决Linux上的内存问题
+        '--no-sandbox', // 某些环境可能需要
+        '--disable-setuid-sandbox'
       ];
       
       // 启动新的浏览器实例
       browser = await browserType.launch({
         headless: false,
-        devtools: true,
+        devtools: false, // 设为false减少问题
         args: browserArgs,
+        timeout: 60000, // 增加启动超时
       });
       
       // 创建新的浏览器上下文和页面
-      context = await browser.newContext();
+      context = await browser.newContext({
+        viewport: { width: 1280, height: 800 },
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      });
+      
       page = await context.newPage();
+      
+      // 设置页面默认超时
+      await page.setDefaultTimeout(30000);
       
       // 设置事件监听，处理意外关闭情况
       browser.on('disconnected', () => {
@@ -49,6 +60,29 @@ export async function initBrowser() {
       
       browserInitialized = true;
       browserClosed = false;
+      
+      console.log('浏览器初始化成功');
+    } else {
+      console.log('使用现有浏览器实例');
+    }
+    
+    // 验证浏览器和页面状态
+    if (!browser || browser.isConnected() === false) {
+      console.warn('浏览器未连接，需要重新初始化');
+      browserClosed = true;
+      return await initBrowser(); // 递归重试
+    }
+    
+    // 验证页面是否关闭
+    if (page && page.isClosed()) {
+      console.warn('页面已关闭，创建新页面');
+      try {
+        page = await context!.newPage();
+      } catch (pageError) {
+        console.error('创建新页面失败，重新初始化浏览器:', pageError);
+        browserClosed = true;
+        return await initBrowser(); // 递归重试
+      }
     }
     
     return { browser, context, page };
@@ -111,31 +145,127 @@ export async function executeBrowserAction(params: {
 }): Promise<any> {
   const { actionType, url, selector, text, timeout = 30000, options = {} } = params;
   
-  try {
-    // 确保浏览器已初始化
-    const { page } = await initBrowser();
-    
-    if (!page) {
-      throw new Error('浏览器页面未初始化');
-    }
-    
-    // 检查页面是否已关闭
-    if (page.isClosed()) {
-      console.log('页面已关闭，重新初始化...');
-      browserClosed = true;
-      // 重新初始化
-      const { page: newPage } = await initBrowser();
-      if (!newPage) {
-        throw new Error('无法重新初始化浏览器页面');
+  // 最大重试次数
+  const maxRetries = 2;
+  let retries = 0;
+  
+  while (retries <= maxRetries) {
+    try {
+      // 确保浏览器已初始化
+      console.log(`[执行浏览器动作] ${actionType} - 尝试 ${retries + 1}/${maxRetries + 1}`);
+      const { page } = await initBrowser();
+      
+      if (!page) {
+        throw new Error('浏览器页面未初始化');
       }
-    }
+      
+      // 检查浏览器连接状态
+      if (!browser || !browser.isConnected()) {
+        console.warn('浏览器未连接，重新初始化...');
+        browserClosed = true;
+        if (retries < maxRetries) {
+          retries++;
+          continue;
+        } else {
+          throw new Error('浏览器连接失败，已达到最大重试次数');
+        }
+      }
+      
+      // 检查页面是否已关闭
+      if (page.isClosed()) {
+        console.warn('页面已关闭，重新初始化...');
+        browserClosed = true;
+        if (retries < maxRetries) {
+          retries++;
+          continue;
+        } else {
+          throw new Error('页面持续关闭，已达到最大重试次数');
+        }
+      }
     
-    // 根据动作类型执行相应操作
-    switch (actionType) {
+      // 根据动作类型执行相应操作
+      console.log(`执行动作: ${actionType}`);
+      switch (actionType) {
       case BrowserActionType.NAVIGATE:
         if (!url) throw new Error('导航操作需要提供URL');
-        await page.goto(url, { timeout, waitUntil: 'domcontentloaded', ...options });
-        return { success: true, title: await page.title() };
+        
+        // 确保URL格式正确
+        let formattedUrl = url.trim();
+        
+        // 如果URL不包含协议，添加https://
+        if (!/^https?:\/\//i.test(formattedUrl)) {
+          formattedUrl = `https://${formattedUrl}`;
+          console.log(`URL缺少协议，已自动添加https://，现在URL为: ${formattedUrl}`);
+        }
+        
+        try {
+          // 尝试解析URL以验证其有效性
+          new URL(formattedUrl);
+          
+          console.log(`正在导航到: ${formattedUrl}`);
+          
+          // 验证浏览器和页面状态
+          if (!browser || !browser.isConnected() || !page || page.isClosed()) {
+            throw new Error('浏览器或页面状态无效，无法导航');
+          }
+          
+          // 增加导航重试逻辑
+          let navResponse;
+          const navMaxRetries = 2;
+          let navRetries = 0;
+          
+          while (navRetries <= navMaxRetries) {
+            try {
+              navResponse = await page.goto(formattedUrl, { 
+                timeout: Math.max(timeout, 30000), // 至少30秒超时
+                waitUntil: 'domcontentloaded', // 更可靠的等待策略
+                ...options 
+              });
+              break; // 成功则跳出循环
+            } catch (navError: any) {
+              if (navRetries < navMaxRetries && 
+                  (navError.message.includes('Target page, context or browser has been closed') ||
+                   navError.message.includes('Navigation timeout'))) {
+                console.log(`导航重试 (${navRetries + 1}/${navMaxRetries})...`);
+                navRetries++;
+                await new Promise(r => setTimeout(r, 1000)); // 等待1秒再重试
+              } else {
+                throw navError; // 达到最大重试次数，抛出错误
+              }
+            }
+          }
+          
+          const response = navResponse;
+          
+          // 检查响应状态
+          if (!response) {
+            console.warn(`导航到 ${formattedUrl} 没有收到响应`);
+            return { 
+              success: true, 
+              title: await page.title(),
+              warning: '页面导航未返回响应，但操作没有失败' 
+            };
+          }
+          
+          if (!response.ok()) {
+            console.warn(`导航到 ${formattedUrl} 收到HTTP错误: ${response.status()}`);
+            return { 
+              success: true, 
+              title: await page.title(),
+              currentUrl: page.url(),
+              warning: `页面返回了HTTP状态码: ${response.status()}` 
+            };
+          }
+          
+          return { 
+            success: true, 
+            title: await page.title(),
+            currentUrl: page.url()
+          };
+        } catch (urlError) {
+          console.error(`导航错误: ${urlError}`);
+          throw new Error(`URL格式无效或导航失败: ${urlError}`);
+        }
         
       case BrowserActionType.CLICK:
         if (!selector) throw new Error('点击操作需要提供选择器');
@@ -197,11 +327,34 @@ export async function executeBrowserAction(params: {
       default:
         throw new Error(`不支持的浏览器动作类型: ${actionType}`);
     }
-  } catch (error: any) {
-    console.error(`执行浏览器动作失败: ${error}`);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : String(error) 
-    };
+    } catch (error: any) {
+      console.error(`执行浏览器动作失败: ${error}`);
+      
+      // 检查是否与浏览器连接相关的错误
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      const isBrowserConnectionError = errorMsg.includes('Target page, context or browser has been closed') || 
+                                       errorMsg.includes('Browser has been closed') ||
+                                       errorMsg.includes('Target closed') ||
+                                       errorMsg.includes('Connection closed');
+      
+      if (isBrowserConnectionError && retries < maxRetries) {
+        console.log(`检测到浏览器连接错误，尝试重新初始化... (${retries + 1}/${maxRetries})`);
+        browserClosed = true;
+        browser = null;
+        context = null;
+        page = null;
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 等待1秒再重试
+        retries++;
+        continue;
+      }
+      
+      return { 
+        success: false, 
+        error: errorMsg 
+      };
+    }
+    
+    // 如果执行成功，跳出重试循环
+    break;
   }
 }

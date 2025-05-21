@@ -283,6 +283,7 @@ const WorkflowDesigner: React.FC = () => {
               onNodesChange={setNodes}
               onEdgesChange={setEdges}
               onNodeSelect={handleNodeSelect}
+              hasWorkflow={!!currentWorkflow}
             />
           </Card>
         </Content>
